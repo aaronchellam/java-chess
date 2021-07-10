@@ -3,11 +3,15 @@ package com.chess.engine.pieces;
 import com.chess.engine.Alliance;
 import com.chess.engine.board.Board;
 import com.chess.engine.board.Move;
+import com.chess.engine.board.Move.NormalMove;
 import com.chess.engine.board.Tile;
 import com.google.common.collect.ImmutableList;
-
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+
+// Static import means that Move.NormalMove does not need to be specified.
+import static com.chess.engine.board.BoardUtils.isValidTileCoordinate;
 
 /*
 If all squares are numbered from 0 to 63, a knight on a given square x will have constant potential moves relative to
@@ -17,41 +21,63 @@ not necessarily a legal move given that the new square may be occupied by a frie
 off-board.
  */
 
+/**
+ * A knight has at most 8 legal moves.
+ * <p>
+ * To calculate candidate legal moves, it must first check the coordinates of the positions that a knight can typically
+ * move to. The relative coordinate modifiers are stored in the candidate_move_coordinates array.
+ */
 public class Knight extends Piece {
 
-    private final static int[] candidate_move_coordinates = {-17, -15, 10, -6, 6, 10, 15, 17};
+    // The relative coordinate modifiers
+    private final static int[] candidate_move_offsets = {-17, -15, -10, -6, 6, 10, 15, 17};
 
     private Knight(final int piecePosition, final Alliance pieceAlliance) {
         super(piecePosition, pieceAlliance);
     }
 
+    //TODO check that javadoc is accurate for valid squares
+    /**
+     * This method iterates through the coordinate modifiers for the knight to determine potential squares the piece can
+     * move to. If the square itself is valid (i.e on the board and a legitimate knight move), it then checks whether or
+     * not the square is occupied by another piece. If it is NOT occupied, the relevant move is added to the list of
+     * legal moves. If it is occupied the method then checks whether or not the occupying piece is of an opposing
+     * alliance. An allied piece implies that the move would not be legal, whereas an opposing piece results in a
+     * capture move being added to the list of legal moves.
+     *
+     * @param board - The game board.
+     * @return A list of legal moves.
+     */
     @Override
-    public List<Move> calculateLegalMoves(Board board) {
-        int destinationCoordinate;
+    public Collection<Move> calculateLegalMoves(final Board board) {
         final List<Move> legalMoves = new ArrayList<>();
 
-        for (final int offset : candidate_move_coordinates) {
-            destinationCoordinate = this.piecePosition + offset;
+        // Loop through coordinate modifiers
+        for (final int offset : candidate_move_offsets) {
+            final int candidateDestinationCoordinate = this.piecePosition + offset; // potential position knight can move to
 
             // TODO check coordinate is valid
-            if (true /* isValid coordinate*/) {
-                final Tile destinationTile = board.getTile(destinationCoordinate);
+            if (isValidTileCoordinate(candidateDestinationCoordinate) && isValidKnightColumn(this.piecePosition, candidateDestinationCoordinate)) {
+                final Tile destinationTile = board.getTile(candidateDestinationCoordinate);
 
                 if (!destinationTile.isOccupied()) {
-                    legalMoves.add(new Move()); // TODO The actual move needs to be defined
-
+                    legalMoves.add(new NormalMove(board, this, candidateDestinationCoordinate)); // "this" denotes the knight itself
                 } else { // tile is occupied by a friendly or unfriendly piece
-
                     final Piece pieceAtDestination = destinationTile.getPiece();
                     final Alliance pieceAlliance = pieceAtDestination.getPieceAlliance();
 
                     if (this.pieceAlliance != pieceAlliance) { // enemy piece
-                        legalMoves.add(new Move()); // TODO add move
+                        legalMoves.add(new Move.CaptureMove(board, this, candidateDestinationCoordinate, pieceAtDestination));
                     }
                 }
             }
         }
-
         return ImmutableList.copyOf(legalMoves);
     }
+
+    private static boolean isValidKnightColumn(int currentPosition, int newPosition) {
+        return Math.abs((newPosition % 8) - (currentPosition % 8)) <= 2;
+
+    }
+
 }
